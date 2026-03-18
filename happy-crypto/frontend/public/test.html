@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>API Test</title>
+</head>
+<body>
+  <h1>Happy Crypto API Test</h1>
+  <div id="result"></div>
+  <script>
+    fetch('http://150.109.205.147:3001/api/top-gainers')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('result').innerHTML = 
+          '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+      })
+      .catch(err => {
+        document.getElementById('result').innerHTML = 
+          '<p style="color:red">Error: ' + err.message + '</p>';
+      });
+  </script>
+</body>
+</html>

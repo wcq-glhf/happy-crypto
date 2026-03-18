@@ -1,0 +1,194 @@
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+
+const API_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001' 
+  : 'http://150.109.205.147:3001'
+
+function App() {
+  const [topGainers, setTopGainers] = useState([])
+  const [anomalies, setAnomalies] = useState([])
+  const [memeRush, setMemeRush] = useState([])
+  const [smartMoney, setSmartMoney] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showPostModal, setShowPostModal] = useState(false)
+
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      const [gainers, anom, meme, smart] = await Promise.all([
+        axios.get(`${API_URL}/api/top-gainers`),
+        axios.get(`${API_URL}/api/anomalies`),
+        axios.get(`${API_URL}/api/meme-rush`),
+        axios.get(`${API_URL}/api/smart-money`)
+      ])
+      setTopGainers(gainers.data.data)
+      setAnomalies(anom.data.data)
+      setMemeRush(meme.data.data)
+      setSmartMoney(smart.data.data)
+      setLoading(false)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-binance-dark">
+      <header className="bg-binance-gray border-b border-binance-gold/20 py-4 px-6">
+        <h1 className="text-3xl font-bold text-binance-gold">Happy Crypto</h1>
+        <p className="text-gray-400 text-sm">Binance Market Radar</p>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        {loading ? (
+          <div className="text-center text-binance-gold">Loading...</div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card title="🚀 24h Top Gainers">
+              {topGainers.map(coin => (
+                <CoinRow key={coin.symbol} coin={coin} type="gainer" />
+              ))}
+            </Card>
+
+            <Card title="⚠️ Anomaly Alerts">
+              {anomalies.map(coin => (
+                <CoinRow key={coin.symbol} coin={coin} type="anomaly" />
+              ))}
+            </Card>
+
+            <Card title="🔥 Meme Rush">
+              {memeRush.map(meme => (
+                <MemeCard key={meme.symbol} meme={meme} />
+              ))}
+            </Card>
+
+            <Card title="💎 Smart Money Signals">
+              {smartMoney.map(signal => (
+                <SmartMoneyCard key={signal.token} signal={signal} />
+              ))}
+            </Card>
+          </div>
+        )}
+      </main>
+
+      {showPostModal && (
+        <PostModal 
+          onClose={() => setShowPostModal(false)}
+          onPost={async (content) => {
+            try {
+              await axios.post(`${API_URL}/api/post-square`, { content })
+              alert('Posted successfully!')
+              setShowPostModal(false)
+            } catch (error) {
+              alert('Failed to post: ' + error.message)
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function Card({ title, children }) {
+  return (
+    <div className="bg-binance-gray rounded-lg p-6 border border-binance-gold/10">
+      <h2 className="text-xl font-bold text-binance-gold mb-4">{title}</h2>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+function CoinRow({ coin, type }) {
+  const isPositive = coin.change24h > 0
+  return (
+    <div className="bg-binance-lightgray rounded p-4 flex justify-between items-center">
+      <div>
+        <div className="font-bold text-white">{coin.symbol}</div>
+        <div className="text-sm text-gray-400">${coin.price.toFixed(4)}</div>
+      </div>
+      <div className={`text-right ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+        <div className="font-bold">{isPositive ? '+' : ''}{coin.change24h.toFixed(2)}%</div>
+        {type === 'anomaly' && (
+          <div className="text-xs">{coin.alert === 'pump' ? '🔥 PUMP' : '💥 DUMP'}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MemeCard({ meme }) {
+  const statusColor = meme.status === 'migrating' ? 'text-yellow-400' : 'text-green-400'
+  return (
+    <div className="bg-binance-lightgray rounded p-4">
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <div className="font-bold text-white">{meme.symbol}</div>
+          <div className="text-sm text-gray-400">{meme.name}</div>
+        </div>
+        <div className={`text-xs ${statusColor} font-bold`}>
+          {meme.status === 'migrating' ? '🚀 MIGRATING' : '✨ NEW'}
+        </div>
+      </div>
+      <div className="text-sm text-gray-400">
+        MC: ${(meme.marketCap / 1000).toFixed(0)}K | Holders: {meme.holders}
+      </div>
+    </div>
+  )
+}
+
+function SmartMoneyCard({ signal }) {
+  return (
+    <div className="bg-binance-lightgray rounded p-4">
+      <div className="flex justify-between items-center mb-2">
+        <div className="font-bold text-white">{signal.token}</div>
+        <div className="text-green-400 font-bold">+{signal.profit.toFixed(2)}%</div>
+      </div>
+      <div className="text-sm text-gray-400">
+        Entry: ${signal.price} → Now: ${signal.currentPrice}
+      </div>
+      <div className="text-xs text-binance-gold mt-1">
+        Confidence: {signal.confidence}%
+      </div>
+    </div>
+  )
+}
+
+function PostModal({ onClose, onPost }) {
+  const [content, setContent] = useState('')
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-binance-gray rounded-lg p-6 max-w-lg w-full border border-binance-gold/20">
+        <h3 className="text-xl font-bold text-binance-gold mb-4">Post to Binance Square</h3>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Share your crypto insights..."
+          className="w-full bg-binance-lightgray text-white p-3 rounded border border-binance-gold/10 h-32 resize-none"
+        />
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => onPost(content)}
+            disabled={!content.trim()}
+            className="flex-1 bg-binance-gold text-black py-2 rounded font-bold hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Post
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-binance-lightgray text-white py-2 rounded font-bold hover:bg-gray-600"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default App
